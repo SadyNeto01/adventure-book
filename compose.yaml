@@ -1,0 +1,9 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: adventure_book
+      POSTGRES_USER: adventure
+      POSTGRES_PASSWORD: adventure
+    ports:
+      - "5432:5432"
