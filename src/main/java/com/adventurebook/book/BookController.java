@@ -1,5 +1,6 @@
 package com.adventurebook.book;
 
+import com.adventurebook.book.dto.BookFilterDTO;
 import com.adventurebook.book.dto.BookSummaryDTO;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -18,7 +19,8 @@ public class BookController {
     private final BookService bookService;
 
     @GetMapping
-    public PagedModel<BookSummaryDTO> list(@ParameterObject @PageableDefault(sort = "title") Pageable pageable) {
-        return new PagedModel<>(bookService.list(pageable));
+    public PagedModel<BookSummaryDTO> list(@ParameterObject BookFilterDTO filter,
+                                           @ParameterObject @PageableDefault(sort = "title") Pageable pageable) {
+        return new PagedModel<>(bookService.list(filter, pageable));
     }
 }
