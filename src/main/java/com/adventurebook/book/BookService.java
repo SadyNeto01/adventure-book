@@ -1,8 +1,10 @@
 package com.adventurebook.book;
 
+import com.adventurebook.book.dto.BookDetailsDTO;
 import com.adventurebook.book.dto.BookFilterDTO;
 import com.adventurebook.book.dto.BookSummaryDTO;
 import com.adventurebook.book.entity.Book;
+import com.adventurebook.section.entity.SectionType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -40,6 +42,19 @@ public class BookService {
         Page<BookSummaryDTO> page = books.findAll(toSpecification(filter), pageable).map(BookSummaryDTO::from);
         log.debug("Listed {} of {} books, sort={}", page.getNumberOfElements(), page.getTotalElements(), pageable.getSort());
         return page;
+    }
+
+    @Transactional(readOnly = true)
+    public BookDetailsDTO details(Long id) {
+        log.info("Get book details id={}", id);
+        Book book = books.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Book " + id + " not found"));
+        int beginSectionId = book.getSections().stream()
+                .filter(s -> s.getType() == SectionType.BEGIN)
+                .findFirst().orElseThrow()
+                .getId().sectionId();
+        log.debug("Book {} begins at section {}", id, beginSectionId);
+        return BookDetailsDTO.from(book, beginSectionId);
     }
 
     private static String normalizeCategory(String category) {

@@ -86,6 +86,32 @@ class BookControllerTests {
 	}
 
 	@Test
+	void returnsBookDetailsWithBeginSection() throws Exception {
+		mvc.perform(get("/books/1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.title").value("The Crystal Caverns"))
+				.andExpect(jsonPath("$.author").value("Evelyn Stormrider"))
+				.andExpect(jsonPath("$.difficulty").value("EASY"))
+				.andExpect(jsonPath("$.categories").value(contains("ADVENTURE", "FANTASY")))
+				.andExpect(jsonPath("$.beginSectionId").value(1));
+	}
+
+	@Test
+	void returnsNotFoundForUnknownBook() throws Exception {
+		mvc.perform(get("/books/999"))
+				.andExpect(status().isNotFound())
+				.andExpect(content().contentType("application/problem+json"))
+				.andExpect(jsonPath("$.detail").value("Book 999 not found"));
+	}
+
+	@Test
+	void rejectsNonNumericBookIdWithBadRequest() throws Exception {
+		mvc.perform(get("/books/abc"))
+				.andExpect(status().isBadRequest())
+				.andExpect(content().contentType("application/problem+json"));
+	}
+
+	@Test
 	void rejectsUnknownSortPropertyWithBadRequest() throws Exception {
 		mvc.perform(get("/books").param("sort", "string"))
 				.andExpect(status().isBadRequest())
