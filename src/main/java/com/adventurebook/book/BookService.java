@@ -47,13 +47,41 @@ public class BookService {
     @Transactional(readOnly = true)
     public BookDetailsDTO details(Long id) {
         log.info("Get book details id={}", id);
-        Book book = books.findById(id)
+        return toDetails(findBook(id));
+    }
+
+    @Transactional
+    public BookDetailsDTO addCategory(Long id, String category) {
+        Book book = findBook(id);
+        String normalized = normalizeCategory(category);
+        if (!book.getCategories().add(normalized)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Book " + id + " already has category " + normalized);
+        }
+        log.info("Category {} added to book {}", normalized, id);
+        return toDetails(book);
+    }
+
+    @Transactional
+    public void removeCategory(Long id, String category) {
+        Book book = findBook(id);
+        String normalized = normalizeCategory(category);
+        if (!book.getCategories().remove(normalized)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Book " + id + " has no category " + normalized);
+        }
+        log.info("Category {} removed from book {}", normalized, id);
+    }
+
+    private Book findBook(Long id) {
+        return books.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Book " + id + " not found"));
+    }
+
+    private static BookDetailsDTO toDetails(Book book) {
         int beginSectionId = book.getSections().stream()
                 .filter(s -> s.getType() == SectionType.BEGIN)
                 .findFirst().orElseThrow()
                 .getId().sectionId();
-        log.debug("Book {} begins at section {}", id, beginSectionId);
+        log.debug("Book {} begins at section {}", book.getId(), beginSectionId);
         return BookDetailsDTO.from(book, beginSectionId);
     }
 

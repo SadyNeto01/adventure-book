@@ -8,13 +8,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -112,10 +116,54 @@ class BookControllerTests {
 	}
 
 	@Test
+	void addsNormalizedCategoryOnceAndRemovesIt() throws Exception {
+		addCategory(1, " horror ")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.categories").value(contains("ADVENTURE", "FANTASY", "HORROR")));
+		addCategory(1, "HORROR")
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.detail").value("Book 1 already has category HORROR"));
+
+		mvc.perform(delete("/books/1/categories/horror"))
+				.andExpect(status().isNoContent());
+		mvc.perform(get("/books/1"))
+				.andExpect(jsonPath("$.categories").value(contains("ADVENTURE", "FANTASY")));
+	}
+
+	@Test
+	void removingMissingCategoryIsNotFound() throws Exception {
+		mvc.perform(delete("/books/1/categories/sci-fi"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.detail").value("Book 1 has no category SCI-FI"));
+	}
+
+	@Test
+	void rejectsBlankOrTooLongCategoryWithErrors() throws Exception {
+		for (String category : List.of(" ", "x".repeat(51))) {
+			addCategory(1, category)
+					.andExpect(status().isBadRequest())
+					.andExpect(content().contentType("application/problem+json"))
+					.andExpect(jsonPath("$.errors[0].field").value("category"));
+		}
+	}
+
+	@Test
+	void categoryEndpointsReturnNotFoundForUnknownBook() throws Exception {
+		addCategory(999, "horror").andExpect(status().isNotFound());
+		mvc.perform(delete("/books/999/categories/horror")).andExpect(status().isNotFound());
+	}
+
+	@Test
 	void rejectsUnknownSortPropertyWithBadRequest() throws Exception {
 		mvc.perform(get("/books").param("sort", "string"))
 				.andExpect(status().isBadRequest())
 				.andExpect(content().contentType("application/problem+json"))
 				.andExpect(jsonPath("$.detail").value("Cannot sort by 'string'. Allowed: [id, title, author, difficulty]"));
+	}
+
+	private ResultActions addCategory(long bookId, String category) throws Exception {
+		return mvc.perform(post("/books/{id}/categories", bookId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"category\": \"" + category + "\"}"));
 	}
 }
