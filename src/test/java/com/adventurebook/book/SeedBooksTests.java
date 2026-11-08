@@ -7,15 +7,11 @@ import com.adventurebook.section.entity.Consequence;
 import com.adventurebook.section.entity.ConsequenceType;
 import com.adventurebook.section.entity.Option;
 import com.adventurebook.section.entity.Section;
-import com.adventurebook.section.entity.SectionType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -26,6 +22,9 @@ class SeedBooksTests {
 
 	@Autowired
 	BookRepository books;
+
+	@Autowired
+	BookValidator validator;
 
 	@Test
 	void seedLoadsTheThreeFixedSampleBooks() {
@@ -55,17 +54,7 @@ class SeedBooksTests {
 	@Test
 	void seededBooksAreValid() {
 		for (Book book : books.findAll()) {
-			Set<Integer> ids = book.getSections().stream()
-					.map(s -> s.getId().sectionId()).collect(Collectors.toSet());
-
-			assertThat(book.getSections()).filteredOn(s -> s.getType() == SectionType.BEGIN).hasSize(1);
-			assertThat(book.getSections()).anyMatch(s -> s.getType() == SectionType.END);
-			for (Section s : book.getSections()) {
-				if (s.getType() != SectionType.END) {
-					assertThat(s.getOptions()).as("%s section %s", book.getTitle(), s.getId().sectionId()).isNotEmpty();
-					assertThat(s.getOptions()).allMatch(o -> ids.contains(o.gotoId()));
-				}
-			}
+			assertThat(validator.validate(book)).as(book.getTitle()).isEmpty();
 		}
 	}
 
