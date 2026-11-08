@@ -5,6 +5,7 @@ import com.adventurebook.progress.dto.ProgressDTO;
 import com.adventurebook.progress.entity.PlayerProgress;
 import com.adventurebook.progress.entity.ProgressStatus;
 import com.adventurebook.section.SectionRepository;
+import com.adventurebook.section.entity.Option;
 import com.adventurebook.section.entity.Section;
 import com.adventurebook.section.entity.SectionId;
 import com.adventurebook.section.entity.SectionType;
@@ -14,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -50,12 +53,39 @@ public class ProgressService {
     @Transactional(readOnly = true)
     public ProgressDTO get(Long playerId, Long bookId) {
         log.info("Get progress of player {} in book {}", playerId, bookId);
-        PlayerProgress progress = progresses.findByPlayerIdAndBookId(playerId, bookId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "Player " + playerId + " has not started book " + bookId));
-        Section section = sections.findById(new SectionId(bookId, progress.getCurrentSectionId())).orElseThrow();
+        PlayerProgress progress = findProgress(playerId, bookId);
+        Section section = findSection(bookId, progress.getCurrentSectionId());
         log.debug("Player {} is at section {} of book {} with health {} ({})",
                 playerId, section.getId().sectionId(), bookId, progress.getHealth(), progress.getStatus());
         return ProgressDTO.from(progress, section);
+    }
+
+    @Transactional
+    public ProgressDTO choose(Long playerId, Long bookId, int option) {
+        PlayerProgress progress = findProgress(playerId, bookId);
+        int from = progress.getCurrentSectionId();
+        List<Option> options = findSection(bookId, from).getOptions();
+        if (options == null || option >= options.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Section " + from + " has no option " + option);
+        }
+
+        Section target = findSection(bookId, options.get(option).gotoId());
+        progress.moveTo(target.getId().sectionId(), target.getType() == SectionType.END);
+        log.info("Player {} chose option {} in section {} of book {} -> {}",
+                playerId, option, from, bookId, target.getId().sectionId());
+        if (progress.getStatus() == ProgressStatus.FINISHED) {
+            log.info("Player {} finished book {}", playerId, bookId);
+        }
+        return ProgressDTO.from(progress, target);
+    }
+
+    private PlayerProgress findProgress(Long playerId, Long bookId) {
+        return progresses.findByPlayerIdAndBookId(playerId, bookId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Player " + playerId + " has not started book " + bookId));
+    }
+
+    private Section findSection(Long bookId, int sectionId) {
+        return sections.findById(new SectionId(bookId, sectionId)).orElseThrow();
     }
 }

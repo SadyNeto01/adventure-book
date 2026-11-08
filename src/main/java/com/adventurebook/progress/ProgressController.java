@@ -1,11 +1,14 @@
 package com.adventurebook.progress;
 
+import com.adventurebook.progress.dto.ChoiceRequestDTO;
 import com.adventurebook.progress.dto.ProgressDTO;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,5 +29,11 @@ public class ProgressController {
     @GetMapping
     public ProgressDTO get(@PathVariable Long playerId, @PathVariable Long bookId) {
         return progressService.get(playerId, bookId);
+    }
+
+    @PostMapping("/choices")
+    public ProgressDTO choose(@PathVariable Long playerId, @PathVariable Long bookId,
+                              @Valid @RequestBody ChoiceRequestDTO request) {
+        return progressService.choose(playerId, bookId, request.option());
     }
 }

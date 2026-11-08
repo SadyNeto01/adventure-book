@@ -11,8 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -102,5 +104,54 @@ class ProgressControllerTests {
 		mvc.perform(post("/players/{p}/books/999", playerId))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.detail").value("Book 999 not found"));
+	}
+
+	@Test
+	void choosingFirstOptionFromBeginFinishesTheBook() throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+
+		for (int expected : new int[] {100, 300, 600, 900}) {
+			choose(1, "0")
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.section.id").value(expected))
+					.andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+		}
+		choose(1, "0")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.section.id").value(800))
+				.andExpect(jsonPath("$.section.type").value("END"))
+				.andExpect(jsonPath("$.status").value("FINISHED"));
+	}
+
+	@Test
+	void rejectsOptionNotInCurrentSectionAndKeepsProgress() throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+
+		choose(1, "9")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail").value("Section 1 has no option 9"));
+		mvc.perform(get("/players/{p}/books/1", playerId))
+				.andExpect(jsonPath("$.section.id").value(1));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"null", "-1"})
+	void rejectsMissingOrNegativeOptionWithErrors(String option) throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+
+		choose(1, option)
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("option"));
+	}
+
+	@Test
+	void choosingWithoutStartingIsNotFound() throws Exception {
+		choose(1, "0").andExpect(status().isNotFound());
+	}
+
+	private ResultActions choose(long bookId, String option) throws Exception {
+		return mvc.perform(post("/players/{p}/books/{b}/choices", playerId, bookId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"option\": " + option + "}"));
 	}
 }

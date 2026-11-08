@@ -50,6 +50,13 @@ public class PlayerProgress {
         this.status = ProgressStatus.IN_PROGRESS;
     }
 
+    public void moveTo(int sectionId, boolean end) {
+        this.currentSectionId = sectionId;
+        if (end) {
+            this.status = ProgressStatus.FINISHED;
+        }
+    }
+
     @PrePersist
     @PreUpdate
     void touch() {
