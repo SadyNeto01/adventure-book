@@ -43,6 +43,8 @@ public class ProgressService {
         } else if (progress.getStatus() == ProgressStatus.IN_PROGRESS) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Player " + playerId + " is already reading book " + bookId);
+        } else if (progress.getStatus() == ProgressStatus.PAUSED) {
+            throw pausedConflict(playerId, bookId);
         } else {
             log.info("Player {} restarted book {} after {}", playerId, bookId, progress.getStatus());
             progress.restart(beginSectionId);
@@ -63,6 +65,9 @@ public class ProgressService {
     @Transactional
     public ProgressDTO choose(Long playerId, Long bookId, int option) {
         PlayerProgress progress = findProgress(playerId, bookId);
+        if (progress.getStatus() == ProgressStatus.PAUSED) {
+            throw pausedConflict(playerId, bookId);
+        }
         if (progress.getStatus() != ProgressStatus.IN_PROGRESS) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Game over: player " + playerId + " is " + progress.getStatus() + " in book " + bookId);
@@ -83,6 +88,35 @@ public class ProgressService {
             log.info("Player {} is {} in book {}", playerId, progress.getStatus(), bookId);
         }
         return ProgressDTO.from(progress, target, chosen.consequence());
+    }
+
+    @Transactional
+    public ProgressDTO pause(Long playerId, Long bookId) {
+        PlayerProgress progress = findProgress(playerId, bookId);
+        if (progress.getStatus() != ProgressStatus.IN_PROGRESS) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Player " + playerId + " can't pause book " + bookId + ": it is " + progress.getStatus());
+        }
+        progress.pause();
+        log.info("Player {} paused book {}", playerId, bookId);
+        return ProgressDTO.from(progress, findSection(bookId, progress.getCurrentSectionId()));
+    }
+
+    @Transactional
+    public ProgressDTO resume(Long playerId, Long bookId) {
+        PlayerProgress progress = findProgress(playerId, bookId);
+        if (progress.getStatus() != ProgressStatus.PAUSED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Player " + playerId + " can't resume book " + bookId + ": it is " + progress.getStatus());
+        }
+        progress.resume();
+        log.info("Player {} resumed book {}", playerId, bookId);
+        return ProgressDTO.from(progress, findSection(bookId, progress.getCurrentSectionId()));
+    }
+
+    private static ResponseStatusException pausedConflict(Long playerId, Long bookId) {
+        return new ResponseStatusException(HttpStatus.CONFLICT,
+                "Player " + playerId + " has paused book " + bookId + ", resume it first");
     }
 
     private PlayerProgress findProgress(Long playerId, Long bookId) {

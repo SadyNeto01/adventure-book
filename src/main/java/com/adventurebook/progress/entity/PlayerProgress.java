@@ -52,6 +52,14 @@ public class PlayerProgress {
         this.status = ProgressStatus.IN_PROGRESS;
     }
 
+    public void pause() {
+        this.status = ProgressStatus.PAUSED;
+    }
+
+    public void resume() {
+        this.status = ProgressStatus.IN_PROGRESS;
+    }
+
     public void moveTo(int sectionId, boolean end, Consequence consequence) {
         this.currentSectionId = sectionId;
         if (consequence != null) {

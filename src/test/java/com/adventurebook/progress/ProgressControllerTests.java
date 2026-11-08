@@ -205,6 +205,69 @@ class ProgressControllerTests {
 				.andExpect(jsonPath("$.health").value(10));
 	}
 
+	@Test
+	void pausesAndResumesWhereThePlayerStopped() throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+		chooseAll(1, 1, 0);
+
+		mvc.perform(post("/players/{p}/books/1/pause", playerId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("PAUSED"))
+				.andExpect(jsonPath("$.section.id").value(200))
+				.andExpect(jsonPath("$.health").value(6));
+		mvc.perform(get("/players/{p}/books/1", playerId))
+				.andExpect(jsonPath("$.status").value("PAUSED"));
+
+		mvc.perform(post("/players/{p}/books/1/resume", playerId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+				.andExpect(jsonPath("$.section.id").value(200))
+				.andExpect(jsonPath("$.health").value(6));
+		choose(1, "0").andExpect(status().isOk());
+	}
+
+	@Test
+	void pausedBookRejectsChoicesAndStartingAgain() throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+		mvc.perform(post("/players/{p}/books/1/pause", playerId)).andExpect(status().isOk());
+
+		String paused = "Player " + playerId + " has paused book 1, resume it first";
+		choose(1, "0")
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.detail").value(paused));
+		mvc.perform(post("/players/{p}/books/1", playerId))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.detail").value(paused));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"PAUSED", "DEAD", "FINISHED"})
+	void pausesOnlyABookInProgress(String currentStatus) throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+		jdbc.update("UPDATE player_progress SET status = ? WHERE player_id = ?", currentStatus, playerId);
+
+		mvc.perform(post("/players/{p}/books/1/pause", playerId))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.detail").value("Player " + playerId + " can't pause book 1: it is " + currentStatus));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"IN_PROGRESS", "DEAD", "FINISHED"})
+	void resumesOnlyAPausedBook(String currentStatus) throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+		jdbc.update("UPDATE player_progress SET status = ? WHERE player_id = ?", currentStatus, playerId);
+
+		mvc.perform(post("/players/{p}/books/1/resume", playerId))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.detail").value("Player " + playerId + " can't resume book 1: it is " + currentStatus));
+	}
+
+	@Test
+	void pausingOrResumingWithoutStartingIsNotFound() throws Exception {
+		mvc.perform(post("/players/{p}/books/1/pause", playerId)).andExpect(status().isNotFound());
+		mvc.perform(post("/players/{p}/books/1/resume", playerId)).andExpect(status().isNotFound());
+	}
+
 	private ResultActions chooseAll(long bookId, int... options) throws Exception {
 		ResultActions last = null;
 		for (int option : options) {

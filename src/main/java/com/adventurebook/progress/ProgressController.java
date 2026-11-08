@@ -36,4 +36,14 @@ public class ProgressController {
                               @Valid @RequestBody ChoiceRequestDTO request) {
         return progressService.choose(playerId, bookId, request.option());
     }
+
+    @PostMapping("/pause")
+    public ProgressDTO pause(@PathVariable Long playerId, @PathVariable Long bookId) {
+        return progressService.pause(playerId, bookId);
+    }
+
+    @PostMapping("/resume")
+    public ProgressDTO resume(@PathVariable Long playerId, @PathVariable Long bookId) {
+        return progressService.resume(playerId, bookId);
+    }
 }
