@@ -63,20 +63,26 @@ public class ProgressService {
     @Transactional
     public ProgressDTO choose(Long playerId, Long bookId, int option) {
         PlayerProgress progress = findProgress(playerId, bookId);
+        if (progress.getStatus() != ProgressStatus.IN_PROGRESS) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Game over: player " + playerId + " is " + progress.getStatus() + " in book " + bookId);
+        }
         int from = progress.getCurrentSectionId();
         List<Option> options = findSection(bookId, from).getOptions();
         if (options == null || option >= options.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Section " + from + " has no option " + option);
         }
 
-        Section target = findSection(bookId, options.get(option).gotoId());
-        progress.moveTo(target.getId().sectionId(), target.getType() == SectionType.END);
-        log.info("Player {} chose option {} in section {} of book {} -> {}",
-                playerId, option, from, bookId, target.getId().sectionId());
-        if (progress.getStatus() == ProgressStatus.FINISHED) {
-            log.info("Player {} finished book {}", playerId, bookId);
+        Option chosen = options.get(option);
+        Section target = findSection(bookId, chosen.gotoId());
+        int healthBefore = progress.getHealth();
+        progress.moveTo(target.getId().sectionId(), target.getType() == SectionType.END, chosen.consequence());
+        log.info("Player {} chose option {} in section {} of book {} -> {}, health {} -> {}",
+                playerId, option, from, bookId, target.getId().sectionId(), healthBefore, progress.getHealth());
+        if (progress.getStatus() != ProgressStatus.IN_PROGRESS) {
+            log.info("Player {} is {} in book {}", playerId, progress.getStatus(), bookId);
         }
-        return ProgressDTO.from(progress, target);
+        return ProgressDTO.from(progress, target, chosen.consequence());
     }
 
     private PlayerProgress findProgress(Long playerId, Long bookId) {

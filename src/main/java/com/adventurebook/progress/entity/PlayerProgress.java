@@ -1,5 +1,7 @@
 package com.adventurebook.progress.entity;
 
+import com.adventurebook.section.entity.Consequence;
+import com.adventurebook.section.entity.ConsequenceType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -50,9 +52,14 @@ public class PlayerProgress {
         this.status = ProgressStatus.IN_PROGRESS;
     }
 
-    public void moveTo(int sectionId, boolean end) {
+    public void moveTo(int sectionId, boolean end, Consequence consequence) {
         this.currentSectionId = sectionId;
-        if (end) {
+        if (consequence != null) {
+            health += consequence.type() == ConsequenceType.GAIN_HEALTH ? consequence.value() : -consequence.value();
+        }
+        if (health <= 0) {
+            this.status = ProgressStatus.DEAD;
+        } else if (end) {
             this.status = ProgressStatus.FINISHED;
         }
     }

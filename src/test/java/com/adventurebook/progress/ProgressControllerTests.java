@@ -149,6 +149,70 @@ class ProgressControllerTests {
 		choose(1, "0").andExpect(status().isNotFound());
 	}
 
+	@Test
+	void loseHealthConsequenceReducesHealthAndIsReturned() throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+
+		chooseAll(1, 1, 0)
+				.andExpect(jsonPath("$.section.id").value(200))
+				.andExpect(jsonPath("$.health").value(6))
+				.andExpect(jsonPath("$.consequence.type").value("LOSE_HEALTH"))
+				.andExpect(jsonPath("$.consequence.value").value(4))
+				.andExpect(jsonPath("$.consequence.text").value("You scrape your shoulder squeezing through the narrow gap."));
+	}
+
+	@Test
+	void gainHealthConsequenceCanGoAboveStartingHealth() throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+
+		chooseAll(1, 0, 0, 1)
+				.andExpect(jsonPath("$.section.id").value(700))
+				.andExpect(jsonPath("$.health").value(13))
+				.andExpect(jsonPath("$.consequence.type").value("GAIN_HEALTH"));
+	}
+
+	@Test
+	void healthReachingZeroKillsThePlayer() throws Exception {
+		mvc.perform(post("/players/{p}/books/3", playerId)).andExpect(status().isCreated());
+
+		chooseAll(3, 0, 0, 0, 0, 0, 0, 0, 0)
+				.andExpect(jsonPath("$.health").value(-2))
+				.andExpect(jsonPath("$.status").value("DEAD"));
+	}
+
+	@Test
+	void deathWinsOverReachingAnEndSection() throws Exception {
+		mvc.perform(post("/players/{p}/books/2", playerId)).andExpect(status().isCreated());
+
+		chooseAll(2, 1, 0, 0, 1, 0, 1, 0, 0)
+				.andExpect(jsonPath("$.section.id").value(1500))
+				.andExpect(jsonPath("$.section.type").value("END"))
+				.andExpect(jsonPath("$.health").value(-3))
+				.andExpect(jsonPath("$.status").value("DEAD"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"DEAD", "FINISHED"})
+	void rejectsChoicesWhenGameIsOver(String endedStatus) throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+		jdbc.update("UPDATE player_progress SET status = ? WHERE player_id = ?", endedStatus, playerId);
+
+		choose(1, "0")
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.detail").value("Game over: player " + playerId + " is " + endedStatus + " in book 1"));
+		mvc.perform(get("/players/{p}/books/1", playerId))
+				.andExpect(jsonPath("$.section.id").value(1))
+				.andExpect(jsonPath("$.health").value(10));
+	}
+
+	private ResultActions chooseAll(long bookId, int... options) throws Exception {
+		ResultActions last = null;
+		for (int option : options) {
+			last = choose(bookId, String.valueOf(option)).andExpect(status().isOk());
+		}
+		return last;
+	}
+
 	private ResultActions choose(long bookId, String option) throws Exception {
 		return mvc.perform(post("/players/{p}/books/{b}/choices", playerId, bookId)
 				.contentType(MediaType.APPLICATION_JSON)
