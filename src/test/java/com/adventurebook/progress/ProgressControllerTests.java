@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -266,6 +267,43 @@ class ProgressControllerTests {
 	void pausingOrResumingWithoutStartingIsNotFound() throws Exception {
 		mvc.perform(post("/players/{p}/books/1/pause", playerId)).andExpect(status().isNotFound());
 		mvc.perform(post("/players/{p}/books/1/resume", playerId)).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void listsPlayerBooksMostRecentlyPlayedFirst() throws Exception {
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+		mvc.perform(post("/players/{p}/books/2", playerId)).andExpect(status().isCreated());
+		choose(1, "0").andExpect(status().isOk());
+
+		mvc.perform(get("/players/{p}/books", playerId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[*].bookId").value(contains(1, 2)))
+				.andExpect(jsonPath("$[0].section.id").value(100))
+				.andExpect(jsonPath("$[0].status").value("IN_PROGRESS"))
+				.andExpect(jsonPath("$[1].section.id").value(1));
+	}
+
+	@Test
+	void playersProgressIndependentlyInTheSameBook() throws Exception {
+		long otherPlayerId = players.save(new Player("Other reader")).getId();
+		mvc.perform(post("/players/{p}/books/1", playerId)).andExpect(status().isCreated());
+		mvc.perform(post("/players/{p}/books/1", otherPlayerId)).andExpect(status().isCreated());
+
+		chooseAll(1, 1, 0);
+
+		mvc.perform(get("/players/{p}/books/1", otherPlayerId))
+				.andExpect(jsonPath("$.section.id").value(1))
+				.andExpect(jsonPath("$.health").value(10));
+	}
+
+	@Test
+	void listingBooksOfNewOrUnknownPlayer() throws Exception {
+		mvc.perform(get("/players/{p}/books", playerId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$").isEmpty());
+		mvc.perform(get("/players/999999/books"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.detail").value("Player 999999 not found"));
 	}
 
 	private ResultActions chooseAll(long bookId, int... options) throws Exception {

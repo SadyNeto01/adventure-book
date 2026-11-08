@@ -53,6 +53,19 @@ public class ProgressService {
     }
 
     @Transactional(readOnly = true)
+    public List<ProgressDTO> list(Long playerId) {
+        log.info("Listing books of player {}", playerId);
+        if (!players.existsById(playerId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Player " + playerId + " not found");
+        }
+        List<ProgressDTO> books = progresses.findByPlayerIdOrderByUpdatedAtDesc(playerId).stream()
+                .map(progress -> ProgressDTO.from(progress, findSection(progress.getBookId(), progress.getCurrentSectionId())))
+                .toList();
+        log.debug("Player {} has {} books", playerId, books.size());
+        return books;
+    }
+
+    @Transactional(readOnly = true)
     public ProgressDTO get(Long playerId, Long bookId) {
         log.info("Get progress of player {} in book {}", playerId, bookId);
         PlayerProgress progress = findProgress(playerId, bookId);
