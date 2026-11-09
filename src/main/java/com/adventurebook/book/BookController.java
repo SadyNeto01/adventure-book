@@ -4,6 +4,7 @@ import com.adventurebook.book.dto.AddCategoryRequestDTO;
 import com.adventurebook.book.dto.BookDetailsDTO;
 import com.adventurebook.book.dto.BookFilterDTO;
 import com.adventurebook.book.dto.BookSummaryDTO;
+import com.adventurebook.book.dto.CreateBookRequestDTO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -31,6 +32,12 @@ public class BookController {
     public PagedModel<BookSummaryDTO> list(@ParameterObject BookFilterDTO filter,
                                            @ParameterObject @PageableDefault(sort = "title") Pageable pageable) {
         return new PagedModel<>(bookService.list(filter, pageable));
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public BookDetailsDTO create(@Valid @RequestBody CreateBookRequestDTO request) {
+        return bookService.create(request);
     }
 
     @GetMapping("/{id}")
